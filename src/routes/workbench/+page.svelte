@@ -263,7 +263,7 @@
 		border-radius: var(--radius-sm) var(--radius-sm) 0 0;
 		color: var(--on-surface);
 		padding: 10px 12px 10px 36px;
-		font-family: monospace;
+		font-family: var(--font-mono);
 		font-size: 0.875rem;
 		font-weight: 700;
 		outline: none;

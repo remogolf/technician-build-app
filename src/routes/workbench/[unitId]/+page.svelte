@@ -476,7 +476,7 @@
 		background: var(--surface-container-highest);
 		color: var(--on-surface);
 		font-weight: 700;
-		font-family: 'Courier New', monospace;
+		font-family: var(--font-mono);
 		outline: none;
 		transition: border-color 0.15s, background 0.15s;
 	}
@@ -497,7 +497,7 @@
 	}
 
 	.save-btn:active {
-		transform: scale(0.97);
+		transform: scale(0.98);
 	}
 
 	/* Section label — shared pattern */
@@ -575,7 +575,7 @@
 		border-radius: var(--radius-md);
 		display: flex;
 		gap: var(--space-sm);
-		font-family: 'Courier New', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.75rem;
 		border: 1px solid var(--outline-variant);
 	}
@@ -683,7 +683,7 @@
 	}
 
 	.serial-tag {
-		font-family: 'Courier New', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.8125rem;
 		font-weight: 700;
 		background: var(--surface-container-highest);

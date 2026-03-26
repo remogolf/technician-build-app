@@ -140,7 +140,7 @@
 	}
 
 	.create-btn:active {
-		transform: scale(0.97);
+		transform: scale(0.98);
 	}
 
 	.create-btn:disabled {

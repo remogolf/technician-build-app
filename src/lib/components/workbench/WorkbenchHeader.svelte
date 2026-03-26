@@ -239,7 +239,7 @@
 	}
 
 	.loc-card:active {
-		transform: scale(0.99);
+		transform: scale(0.98);
 	}
 
 	.loc-name {
