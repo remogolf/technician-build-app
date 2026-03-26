@@ -29,9 +29,13 @@
 	let loadingWip = $state(true);
 	let saving = $state(false);
 	let isReviewMode = $state(false);
+	let serialError = $state(null);
+	let allocateError = $state(null);
+	let completeError = $state(null);
 
 	// Synchronize local state when data prop changes (e.g. navigation)
 	$effect(() => {
+		if (saving) return;
 		unit = data.unit;
 		allocations = data.allocations || [];
 		inputSerial = data.unit?.serial || '';
@@ -91,19 +95,21 @@
 
 	async function handleSaveSerial() {
 		if (inputSerial === (unit?.serial || '')) return;
+		serialError = null;
 		saving = true;
 		try {
 			const updated = await updateStockItem(unit.pk, { serial: inputSerial });
 			unit = updated;
 		} catch (e) {
 			console.error('Failed to save serial', e);
-			alert(`Failed to save serial number: ${e.message}`);
+			serialError = `Failed to save serial number: ${e.message}`;
 		} finally {
 			saving = false;
 		}
 	}
 
 	async function handleAllocate(bomLine, stockItemPk, quantity) {
+		allocateError = null;
 		saving = true;
 		try {
 			const items = [
@@ -124,7 +130,7 @@
 			wipStock = newWip;
 		} catch (e) {
 			console.error('Failed to allocate', e);
-			alert(`Failed to allocate part: ${e.message}`);
+			allocateError = `Failed to allocate part: ${e.message}`;
 		} finally {
 			saving = false;
 		}
@@ -162,18 +168,18 @@
 	}
 
 	async function handleComplete() {
+		completeError = null;
 		saving = true;
 		try {
 			await autoAllocateBulkItems();
 			await completeBuildOutputs(boId, [unit.pk], workbench.wipLocationId);
 
 			unit.is_building = false;
-			alert('Unit completed successfully!');
 			// eslint-disable-next-line svelte/no-navigation-without-resolve
 			await goto('/workbench');
 		} catch (e) {
 			console.error('Failed to complete unit', e);
-			alert(`Failed to complete unit: ${e.message}`);
+			completeError = `Failed to complete unit: ${e.message}`;
 		} finally {
 			saving = false;
 		}
@@ -218,6 +224,9 @@
 					{/if}
 				</div>
 			</Card>
+		{#if serialError}
+			<p class="action-error">{serialError}</p>
+		{/if}
 
 			<div class="section-label">Required Components</div>
 
@@ -296,6 +305,9 @@
 					{/each}
 				</div>
 			{/if}
+			{#if allocateError}
+				<p class="action-error">{allocateError}</p>
+			{/if}
 		{:else}
 			<!-- STATE B: REVIEW & COMMIT -->
 			<div class="review-state">
@@ -364,7 +376,10 @@
 					</button>
 				</div>
 			{:else}
-				<div class="commit-hint">This action consumes materials and finalizes the unit.</div>
+				{#if completeError}
+				<p class="action-error">{completeError}</p>
+			{/if}
+			<div class="commit-hint">This action consumes materials and finalizes the unit.</div>
 				<div class="btn-row">
 					<button class="back-btn" onclick={() => (isReviewMode = false)} disabled={saving}>
 						Back to Edit
@@ -806,5 +821,13 @@
 		background: var(--text-muted);
 		opacity: 0.5;
 		box-shadow: none;
+	}
+
+	.action-error {
+		font-size: 0.8125rem;
+		font-weight: 700;
+		color: var(--tertiary);
+		margin-top: var(--space-sm);
+		margin-bottom: 0;
 	}
 </style>
