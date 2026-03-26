@@ -1,5 +1,5 @@
 <script>
-	import { onMount } from 'svelte';
+	import { onMount, untrack } from 'svelte';
 	import { goto, invalidate } from '$app/navigation';
 	import ScreenHeader from '$lib/components/ScreenHeader.svelte';
 	import Badge from '$lib/components/Badge.svelte';
@@ -33,9 +33,11 @@
 	let allocateError = $state(null);
 	let completeError = $state(null);
 
-	// Synchronize local state when data prop changes (e.g. navigation)
+	// Synchronize local state when data prop changes (e.g. navigation).
+	// saving is read via untrack() so changes to it don't re-trigger this effect —
+	// only genuine data prop changes (navigation) should reset local state.
 	$effect(() => {
-		if (saving) return;
+		if (untrack(() => saving)) return;
 		unit = data.unit;
 		allocations = data.allocations || [];
 		inputSerial = data.unit?.serial || '';
