@@ -1,6 +1,6 @@
 <script>
 	import { onMount } from 'svelte';
-	import { goto } from '$app/navigation';
+	import { goto, invalidate } from '$app/navigation';
 	import ScreenHeader from '$lib/components/ScreenHeader.svelte';
 	import Badge from '$lib/components/Badge.svelte';
 	import Card from '$lib/components/Card.svelte';
@@ -175,6 +175,7 @@
 			await completeBuildOutputs(boId, [unit.pk], workbench.wipLocationId);
 
 			unit.is_building = false;
+			await invalidate('app:build-orders');
 			// eslint-disable-next-line svelte/no-navigation-without-resolve
 			await goto('/workbench');
 		} catch (e) {
