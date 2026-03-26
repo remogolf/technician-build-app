@@ -30,7 +30,16 @@
 		}
 	}
 
-	onMount(loadData);
+	onMount(() => {
+		loadData();
+		fetchLocations()
+			.then((locs) => {
+				locations = locs;
+			})
+			.catch((e) => {
+				console.error('Failed to prefetch locations', e);
+			});
+	});
 
 	$effect(() => {
 		if (locationId) {
