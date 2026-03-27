@@ -1,21 +1,37 @@
 <script>
 	import { onMount } from 'svelte';
 	import { workbench } from '$lib/state/workbench.svelte.js';
-	import { fetchLocations } from '$lib/api/builds';
+	import { fetchLocations, fetchBuildOrders } from '$lib/api/builds';
 	import Modal from '$lib/components/Modal.svelte';
-	import Icon from '$lib/components/Icon.svelte';
 
+	let isPickingOrder = $state(false);
 	let isConfiguring = $state(false);
 	let locations = $state([]);
+	let buildOrders = $state([]);
 	let loadingLocations = $state(false);
+	let loadingOrders = $state(false);
 
 	onMount(async () => {
 		try {
-			locations = await fetchLocations();
+			[locations, buildOrders] = await Promise.all([fetchLocations(), fetchBuildOrders()]);
 		} catch (e) {
-			console.error('Failed to prefetch locations', e);
+			console.error('Failed to prefetch workbench header data', e);
 		}
 	});
+
+	async function openOrderPicker() {
+		isPickingOrder = true;
+		if (buildOrders.length === 0) {
+			loadingOrders = true;
+			try {
+				buildOrders = await fetchBuildOrders();
+			} catch (e) {
+				console.error('Failed to fetch build orders', e);
+			} finally {
+				loadingOrders = false;
+			}
+		}
+	}
 
 	async function openConfig() {
 		isConfiguring = true;
@@ -31,6 +47,11 @@
 		}
 	}
 
+	function handleOrderSelect(bo) {
+		workbench.selectOrder(bo.id, bo.reference);
+		isPickingOrder = false;
+	}
+
 	function handleLocationChange(loc) {
 		workbench.setWipLocation(loc.id, loc.name);
 	}
@@ -41,12 +62,12 @@
 </script>
 
 <div class="workbench-header">
+	<button class="bo-btn" onclick={openOrderPicker} aria-label="Select build order">
+		<span class="label">BUILD ORDER</span>
+		<span class="value">{workbench.buildOrderRef || 'None Selected'}</span>
+	</button>
+	<div class="divider"></div>
 	<div class="session-info">
-		<div class="item main">
-			<span class="label">BUILD ORDER</span>
-			<span class="value">{workbench.buildOrderRef || 'None Selected'}</span>
-		</div>
-		<div class="divider"></div>
 		<div class="item qty">
 			<span class="label">GOAL QTY</span>
 			<input
@@ -58,16 +79,52 @@
 			/>
 		</div>
 	</div>
-	<button class="config-btn" onclick={openConfig} aria-label="Configure session">
+	<button class="config-btn" onclick={openConfig} aria-label="Configure WIP bucket">
 		<div class="bucket-info">
 			<span class="label">BUCKET</span>
 			<span class="value">{workbench.wipLocationName || 'Pick Location'}</span>
 		</div>
-		<Icon name="settings" size={18} />
 	</button>
 </div>
 
-<Modal isOpen={isConfiguring} title="Workbench Config" onClose={() => (isConfiguring = false)}>
+<!-- Build order picker modal -->
+<Modal isOpen={isPickingOrder} title="Build Order" onClose={() => (isPickingOrder = false)}>
+	<div class="picker-modal">
+		{#if loadingOrders}
+			<div class="loading">Loading orders...</div>
+		{:else if buildOrders.length === 0}
+			<div class="loading">No build orders found.</div>
+		{:else}
+			<div class="picker-list">
+				{#each buildOrders as bo (bo.id)}
+					<button
+						class="picker-card"
+						class:active={String(bo.id) === String(workbench.buildOrderId)}
+						onclick={() => handleOrderSelect(bo)}
+					>
+						<span class="picker-ref">{bo.reference}</span>
+						<span class="picker-sub">{bo.partName}</span>
+					</button>
+				{/each}
+			</div>
+		{/if}
+
+		<div class="modal-footer">
+			<button
+				class="clear-btn"
+				onclick={() => {
+					workbench.clear();
+					isPickingOrder = false;
+				}}
+			>
+				Reset Workbench Session
+			</button>
+		</div>
+	</div>
+</Modal>
+
+<!-- WIP bucket picker modal -->
+<Modal isOpen={isConfiguring} title="WIP Bucket" onClose={() => (isConfiguring = false)}>
 	<div class="config-modal">
 		<section class="config-section">
 			<h4>WIP Bucket Location</h4>
@@ -90,18 +147,6 @@
 				</div>
 			{/if}
 		</section>
-
-		<section class="config-section">
-			<button
-				class="clear-btn"
-				onclick={() => {
-					workbench.clear();
-					isConfiguring = false;
-				}}
-			>
-				Reset Workbench Session
-			</button>
-		</section>
 	</div>
 </Modal>
 
@@ -113,13 +158,25 @@
 		border-bottom: 1px solid var(--outline-variant);
 	}
 
-	.session-info {
+	.bo-btn {
 		flex: 1;
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		padding: var(--space-sm) var(--space-lg);
+		min-width: 0;
+		text-align: left;
+		transition: background 0.15s ease;
+	}
+
+	.bo-btn:active {
+		background: var(--surface-container-highest);
+	}
+
+	.session-info {
 		display: flex;
 		align-items: center;
 		padding: var(--space-sm) var(--space-lg);
-		gap: var(--space-lg);
-		min-width: 0;
 	}
 
 	.item {
@@ -128,13 +185,10 @@
 		min-width: 0;
 	}
 
-	.item.main {
-		flex: 1;
-	}
-
 	.divider {
 		width: 1px;
-		height: 24px;
+		align-self: stretch;
+		margin: var(--space-sm) 0;
 		background: var(--outline-variant);
 	}
 
@@ -172,9 +226,6 @@
 		display: flex;
 		align-items: center;
 		padding: var(--space-sm) var(--space-lg);
-		gap: var(--space-md);
-		text-align: right;
-		color: var(--text-muted);
 		transition: background 0.15s ease;
 	}
 
@@ -188,6 +239,60 @@
 		align-items: flex-end;
 	}
 
+	/* Order picker modal */
+	.picker-modal {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-lg);
+	}
+
+	.picker-list {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-sm);
+		max-height: 320px;
+		overflow-y: auto;
+		padding-right: 4px;
+	}
+
+	.picker-card {
+		text-align: left;
+		padding: var(--space-md);
+		background: var(--surface-container-highest);
+		border-radius: var(--radius-md);
+		border: 1px solid transparent;
+		transition: all 0.15s ease;
+	}
+
+	.picker-card.active {
+		border-color: var(--primary);
+		background: var(--surface-container-high);
+	}
+
+	.picker-card:active {
+		transform: scale(0.98);
+	}
+
+	.picker-ref {
+		display: block;
+		font-weight: 800;
+		color: var(--on-surface);
+		font-size: 0.875rem;
+	}
+
+	.picker-sub {
+		display: block;
+		font-size: 0.6875rem;
+		color: var(--text-muted);
+		margin-top: 2px;
+	}
+
+	.modal-footer {
+		padding-top: var(--space-sm);
+		border-top: 1px solid var(--outline-variant);
+	}
+
+	/* Bucket config modal */
 	.config-modal {
 		display: flex;
 		flex-direction: column;

@@ -28,6 +28,7 @@
 	let scanQuery = $state('');
 	let scanning = $state(false);
 	let scanError = $state(null);
+	let bucketRefreshKey = $state(0);
 
 	const boId = $derived(workbench.buildOrderId);
 	const bucketId = $derived(workbench.wipLocationId);
@@ -56,7 +57,7 @@
 						bucketId,
 						'Scanned into WIP'
 					);
-							activeTab = activeTab;
+					bucketRefreshKey += 1;
 				}
 			}
 		} catch (err) {
@@ -135,7 +136,7 @@
 				{#if activeTab === 'needs'}
 					<NeedsList {boId} {bucketId} />
 				{:else if activeTab === 'bucket'}
-					<BucketList locationId={bucketId} />
+					<BucketList locationId={bucketId} refreshKey={bucketRefreshKey} />
 				{:else if activeTab === 'units'}
 					<UnitsList {boId} {bucketId} />
 				{/if}

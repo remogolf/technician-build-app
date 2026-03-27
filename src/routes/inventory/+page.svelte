@@ -2,8 +2,8 @@
 	import { onMount, onDestroy } from 'svelte';
 	import ScreenHeader from '$lib/components/ScreenHeader.svelte';
 	import { searchStock } from '$lib/api/builds';
-	import Card from '$lib/components/Card.svelte';
 	import Icon from '$lib/components/Icon.svelte';
+	import StockItemCard from '$lib/components/StockItemCard.svelte';
 	import BucketList from '$lib/components/workbench/BucketList.svelte';
 	import { workbench } from '$lib/state/workbench.svelte.js';
 
@@ -53,6 +53,17 @@
 	}
 
 	const bucketId = $derived(workbench.wipLocationId);
+
+	const groupedResults = $derived(
+		Object.entries(
+			results.reduce((acc, item) => {
+				const loc =
+					item.location_detail?.pathstring || item.location_detail?.name || 'Unknown Location';
+				(acc[loc] ??= []).push(item);
+				return acc;
+			}, {})
+		)
+	);
 </script>
 
 <div class="inventory-screen">
@@ -96,32 +107,16 @@
 					<div class="status-text">Searching inventory...</div>
 				{:else if results.length > 0}
 					<div class="results-list">
-						{#each results as item (item.pk)}
-							<Card class="result-card">
-								<div class="result-top">
-									<div class="result-info">
-										<div class="part-name">{item.part_detail?.full_name || 'Unknown Part'}</div>
-										<div class="sku-label">SKU: {item.part_detail?.SKU || 'N/A'}</div>
-									</div>
-									<div class="qty-display">
-										<span class="qty-value">{item.quantity}</span>
-										<span class="qty-unit">{item.part_detail?.unit || ''}</span>
-									</div>
+						{#each groupedResults as [location, items]}
+							<div class="location-group">
+								<div class="location-header">
+									<Icon name="map-pin" size={11} />
+									<span>{location}</span>
 								</div>
-
-								{#if item.serial}
-									<div class="serial-tag">SN: {item.serial}</div>
-								{/if}
-
-								<div class="location-row">
-									<Icon name="map-pin" size={12} />
-									<span class="location-text">
-										{item.location_detail?.pathstring ||
-											item.location_detail?.name ||
-											'No Location'}
-									</span>
-								</div>
-							</Card>
+								{#each items as item (item.pk)}
+									<StockItemCard {item} onRefresh={handleSearch} />
+								{/each}
+							</div>
 						{/each}
 					</div>
 				{:else if hasSearched}
@@ -275,86 +270,25 @@
 	.results-list {
 		display: flex;
 		flex-direction: column;
-		gap: var(--space-md);
+		gap: var(--space-lg);
 	}
 
-	:global(.result-card) {
-		display: flex !important;
-		flex-direction: column !important;
-	}
-
-	.result-top {
+	.location-group {
 		display: flex;
-		justify-content: space-between;
-		align-items: flex-start;
-		gap: var(--space-md);
+		flex-direction: column;
+		gap: var(--space-sm);
 	}
 
-	.part-name {
-		font-weight: 800;
-		color: var(--on-surface);
-		font-size: 0.9375rem;
-		line-height: 1.2;
-	}
-
-	.sku-label {
+	.location-header {
+		display: flex;
+		align-items: center;
+		gap: var(--space-xs);
 		font-size: 0.625rem;
 		font-weight: 900;
 		text-transform: uppercase;
 		letter-spacing: 0.08em;
 		color: var(--text-muted);
-		margin-top: var(--space-xs);
-	}
-
-	.qty-display {
-		text-align: right;
-		flex-shrink: 0;
-	}
-
-	.qty-value {
-		font-size: 1.25rem;
-		font-weight: 900;
-		color: var(--primary-fixed-dim);
-		line-height: 1;
-	}
-
-	.qty-unit {
-		font-size: 0.625rem;
-		font-weight: 700;
-		color: var(--text-muted);
-		text-transform: uppercase;
-		display: block;
-	}
-
-	.serial-tag {
-		font-family: var(--font-mono);
-		font-size: 0.75rem;
-		font-weight: 700;
-		background: var(--surface-container-highest);
-		color: var(--on-surface);
-		padding: 2px var(--space-sm);
-		border-radius: var(--radius-sm);
-		border: 1px solid var(--outline-variant);
-		display: inline-block;
-		margin-top: var(--space-md);
-	}
-
-	.location-row {
-		display: flex;
-		align-items: center;
-		gap: var(--space-xs);
-		margin-top: var(--space-md);
-		padding-top: var(--space-md);
-		border-top: 1px solid var(--outline-variant);
-		color: var(--text-muted);
-	}
-
-	.location-text {
-		font-size: 0.75rem;
-		font-weight: 600;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
+		padding: 0 var(--space-xs);
 	}
 
 	/* States */

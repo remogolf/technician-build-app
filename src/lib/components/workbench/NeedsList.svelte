@@ -1,5 +1,4 @@
 <script>
-	import { onMount } from 'svelte';
 	import {
 		fetchBuildOrderBOM,
 		fetchStockInLocation,
@@ -7,7 +6,6 @@
 		fetchStockForPart
 	} from '$lib/api/builds';
 	import Modal from '$lib/components/Modal.svelte';
-	import Card from '$lib/components/Card.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 	import { workbench } from '$lib/state/workbench.svelte.js';
 
@@ -41,8 +39,6 @@
 			loading = false;
 		}
 	}
-
-	onMount(loadData);
 
 	// Re-fetch data if props OR workQuantity changes
 	$effect(() => {
@@ -137,25 +133,28 @@
 			{@const sessionRequired = getRequiredForSession(line)}
 			{@const inBucket = getInBucket(line.partId)}
 			{@const missing = getMissing(line)}
-			<Card class="bom-card {missing <= 0 ? 'complete' : ''}">
+			<div class="bom-card" class:complete={missing <= 0}>
 				<div class="card-body">
 					<div class="info">
 						<div class="part-name">{line.partName}</div>
-						<div class="req-qty">Required for Goal: {sessionRequired} {line.unit}</div>
-					</div>
-					<div class="status">
-						<div class="bucket-qty" class:ready={inBucket >= sessionRequired}>
-							In Bucket: {inBucket}
+						<div class="sub-row">
+							{#if line.partSku}<span class="sku">{line.partSku}</span>{/if}
+							{#if line.unit}<span class="unit-label">{line.unit}</span>{/if}
 						</div>
-						{#if missing > 0}
-							<div class="missing-qty">Pick: {missing}</div>
-						{/if}
+					</div>
+					<div class="qty-block">
+						<div class="qty-value" class:ready={inBucket >= sessionRequired}>{inBucket}</div>
+						<div class="qty-label">picked</div>
+						<div class="qty-needed">/ {sessionRequired} needed</div>
 					</div>
 				</div>
 				{#if missing > 0}
-					<button class="pick-btn" onclick={() => openPickModal(line)}> Pick Missing </button>
+					<button class="pick-btn" onclick={() => openPickModal(line)}>
+						<Icon name="package" size={14} />
+						Pick {missing} Missing
+					</button>
 				{/if}
-			</Card>
+			</div>
 		{/each}
 	{/if}
 </div>
@@ -217,72 +216,111 @@
 		font-weight: 500;
 	}
 
-	:global(.bom-card) {
-		padding: 0 !important;
+	.bom-card {
+		background: var(--surface-container-high);
+		border-radius: var(--radius-md);
+		border: 1px solid var(--outline-variant);
+		border-top: 3px solid var(--tertiary);
 		overflow: hidden;
-		border-top: var(--space-1) solid var(--tertiary) !important;
 	}
 
-	:global(.bom-card.complete) {
-		border-top-color: var(--success) !important;
+	.bom-card.complete {
+		border-top-color: var(--success);
 	}
 
 	.card-body {
 		padding: var(--space-md) var(--space-lg);
 		display: flex;
 		justify-content: space-between;
-		align-items: flex-start;
+		align-items: center;
 		gap: var(--space-md);
+	}
+
+	.info {
+		flex: 1;
+		min-width: 0;
 	}
 
 	.part-name {
 		font-weight: 800;
+		font-size: 0.9375rem;
 		color: var(--on-surface);
 		line-height: 1.2;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 
-	.req-qty {
-		font-size: 0.75rem;
-		color: var(--text-muted);
+	.sub-row {
+		display: flex;
+		gap: var(--space-sm);
 		margin-top: 2px;
-		font-weight: 600;
 	}
 
-	.status {
+	.sku {
+		font-size: 0.6875rem;
+		font-weight: 700;
+		color: var(--text-muted);
+		font-family: var(--font-mono);
+	}
+
+	.unit-label {
+		font-size: 0.6875rem;
+		font-weight: 600;
+		color: var(--text-muted);
+	}
+
+	.qty-block {
 		text-align: right;
 		flex-shrink: 0;
 	}
 
-	.bucket-qty {
-		font-size: 0.8125rem;
-		font-weight: 700;
-		color: var(--text-muted);
+	.qty-value {
+		font-size: 1.25rem;
+		font-weight: 900;
+		line-height: 1;
+		color: var(--tertiary);
+		font-family: var(--font-display);
 	}
 
-	.bucket-qty.ready {
+	.qty-value.ready {
 		color: var(--success);
 	}
 
-	.missing-qty {
-		font-size: 0.8125rem;
-		font-weight: 800;
-		color: var(--tertiary);
+	.qty-label {
+		font-size: 0.625rem;
+		font-weight: 900;
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		color: var(--text-muted);
+	}
+
+	.qty-needed {
+		font-size: 0.6875rem;
+		font-weight: 700;
+		color: var(--text-muted);
+		margin-top: 2px;
 	}
 
 	.pick-btn {
 		width: 100%;
-		min-height: var(--space-12);
-		background: var(--primary);
-		color: var(--on-primary);
+		min-height: 44px;
+		background: var(--surface-container-high);
+		color: var(--on-surface);
 		font-family: var(--font-display);
 		font-weight: 700;
-		font-size: 0.875rem;
-		transition: background-color 0.1s;
-		border-radius: 0 0 var(--radius-md) var(--radius-md);
+		font-size: 0.8125rem;
+		border-top: 1px solid var(--outline-variant);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: var(--space-xs);
+		transition: background-color 0.1s, transform 0.1s;
 	}
 
 	.pick-btn:active {
-		background: var(--primary-container);
+		background: var(--surface-container-highest);
+		transform: scale(0.98);
 	}
 
 	.modal-loading {

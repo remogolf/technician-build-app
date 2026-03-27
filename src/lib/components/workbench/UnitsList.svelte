@@ -1,5 +1,4 @@
 <script>
-	import { onMount } from 'svelte';
 	import {
 		fetchAllBuildOutputs,
 		createSingleOutput,
@@ -8,14 +7,16 @@
 	} from '$lib/api/builds';
 	import UnitCard from './UnitCard.svelte';
 	import Icon from '$lib/components/Icon.svelte';
-	import { goto } from '$app/navigation';
 
 	let { boId, bucketId } = $props();
 
+	/** @type {any} */
 	let bo = $state(null);
+	/** @type {Array<any>} */
 	let outputs = $state([]);
 	let loading = $state(true);
 	let creating = $state(false);
+	/** @type {string|null} */
 	let createError = $state(null);
 
 	async function loadData() {
@@ -29,13 +30,12 @@
 			bo = boData;
 			outputs = outputsData;
 		} catch (e) {
-			console.error('Failed to load UnitsList data', e);
+			const err = e instanceof Error ? e : new Error(String(e));
+			console.error('Failed to load UnitsList data', err);
 		} finally {
 			loading = false;
 		}
 	}
-
-	onMount(loadData);
 
 	$effect(() => {
 		if (boId) {
@@ -58,16 +58,14 @@
 			const newOutput = await createSingleOutput(boId, bucketId, serial);
 			outputs = [newOutput, ...outputs];
 		} catch (e) {
-			console.error('Failed to create output', e);
-			createError = `Failed to create output: ${e.message}`;
+			const err = e instanceof Error ? e : new Error(String(e));
+			console.error('Failed to create output', err);
+			createError = `Failed to create output: ${err.message}`;
 		} finally {
 			creating = false;
 		}
 	}
 
-	function handleUnitClick(unit) {
-		goto(`/workbench/${unit.pk}`);
-	}
 </script>
 
 <div class="units-list">
@@ -99,7 +97,7 @@
 	{:else}
 		<div class="grid">
 			{#each outputs as output (output.pk)}
-				<UnitCard {output} onclick={() => handleUnitClick(output)} />
+				<UnitCard {output} {boId} onRefresh={loadData} />
 			{/each}
 		</div>
 	{/if}
@@ -203,6 +201,7 @@
 	.grid {
 		display: flex;
 		flex-direction: column;
+		gap: var(--space-md);
 	}
 
 	.create-error {

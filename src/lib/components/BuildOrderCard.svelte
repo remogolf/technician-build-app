@@ -1,71 +1,82 @@
 <script>
-  /* eslint-disable svelte/no-navigation-without-resolve */
-  import StatusChip from './StatusChip.svelte';
-  import ProgressBar from './ProgressBar.svelte';
-  import { goto } from '$app/navigation';
+	import Card from './Card.svelte';
+	import StatusChip from './StatusChip.svelte';
+	import ProgressBar from './ProgressBar.svelte';
 
-  let { bo } = $props();
+	/**
+	 * @typedef {Object} BuildOrderCardProps
+	 * @property {any} bo - Build Order data object
+	 * @property {(event: MouseEvent) => any} onclick
+	 */
+	/** @type {BuildOrderCardProps} */
+	let { bo, onclick } = $props();
 </script>
 
-<a
-  class="card"
-  href={`/bo/${bo.id}`}
-  onclick={(event) => {
-    event.preventDefault();
-    const opts = /** @type {any} */ ({ resolve: true });
-    goto(`/bo/${bo.id}`, opts);
-  }}
->
-  <div class="top">
-    <div>
-      <h2>{bo.id}</h2>
-      <p>{bo.built} / {bo.target} built</p>
-    </div>
-    <StatusChip status={bo.status} />
-  </div>
+<Card {onclick} accentColor="var(--primary)">
+	<div class="top-row">
+		<div class="info">
+			<div class="ref">{bo.reference}</div>
+			<div class="name">{bo.partName}</div>
+		</div>
+		<StatusChip status={bo.status} />
+	</div>
 
-  <ProgressBar value={bo.built} max={bo.target} />
+	<div class="qty-row">
+		<span class="built">{bo.built} / {bo.target} built</span>
+		<strong class="remaining" class:warning={bo.remaining > 0}>{bo.remaining} missing</strong>
+	</div>
 
-  <div class="footer">
-    <span>{bo.status === 'done' ? 'View' : 'Open'}</span>
-    <span>→</span>
-  </div>
-</a>
+	<div class="progress-wrap">
+		<ProgressBar value={bo.built} max={bo.target} />
+	</div>
+</Card>
 
 <style>
-  .card {
-    display: block;
-    text-decoration: none;
-    color: inherit;
-    background: white;
-    border-radius: 16px;
-    padding: 16px;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.06);
-  }
+	.top-row {
+		display: flex;
+		justify-content: space-between;
+		gap: var(--space-md);
+		align-items: flex-start;
+	}
 
-  .top {
-    display: flex;
-    justify-content: space-between;
-    gap: 12px;
-    margin-bottom: 12px;
-  }
+	.ref {
+		font-weight: 700;
+		font-family: var(--font-display);
+		font-size: 1.125rem;
+		color: var(--on-surface);
+		letter-spacing: -0.01em;
+	}
 
-  h2 {
-    margin: 0;
-    font-size: 1.05rem;
-  }
+	.name {
+		color: var(--text-muted);
+		margin-top: 2px;
+		font-size: 0.8125rem;
+		font-weight: 500;
+	}
 
-  p {
-    margin: 4px 0 0;
-    color: #6b7280;
-    font-size: 0.9rem;
-  }
+	.qty-row {
+		margin: var(--space-lg) 0 var(--space-sm);
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		font-size: 0.875rem;
+	}
 
-  .footer {
-    margin-top: 12px;
-    display: flex;
-    justify-content: space-between;
-    color: #111827;
-    font-weight: 600;
-  }
+	.built {
+		color: var(--text-muted);
+		font-weight: 600;
+	}
+
+	.remaining {
+		color: var(--success);
+		font-weight: 800;
+	}
+
+	.remaining.warning {
+		color: var(--warning);
+	}
+
+	.progress-wrap {
+		margin-top: var(--space-sm);
+	}
 </style>

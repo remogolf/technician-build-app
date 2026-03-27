@@ -1,6 +1,7 @@
 <script>
 	import { onMount, untrack } from 'svelte';
 	import { goto, invalidate } from '$app/navigation';
+	import { page } from '$app/state';
 	import ScreenHeader from '$lib/components/ScreenHeader.svelte';
 	import Badge from '$lib/components/Badge.svelte';
 	import Card from '$lib/components/Card.svelte';
@@ -10,8 +11,12 @@
 		fetchStockInLocation,
 		updateStockItem,
 		allocateStock,
+		consumeBuildItems,
 		completeBuildOutputs,
-		fetchAllocationsForOutput
+		fetchAllocationsForOutput,
+		fetchBuildLevelAllocations,
+		deallocateStockItems,
+		deleteOutput
 	} from '$lib/api/builds';
 
 	let { data } = $props();
@@ -22,16 +27,28 @@
 	const error = $derived(data.error);
 
 	// Local UI state
+	/** @type {any} */
 	let unit = $state(data.unit);
+	/** @type {Array<any>} */
 	let allocations = $state(data.allocations || []);
+	/** @type {Array<any>} */
+	let bulkAllocations = $state([]);
 	let inputSerial = $state(data.unit?.serial || '');
+	/** @type {Array<any>} */
 	let wipStock = $state([]);
 	let loadingWip = $state(true);
 	let saving = $state(false);
 	let isReviewMode = $state(false);
+	/** @type {string|null} */
 	let serialError = $state(null);
+	/** @type {string|null} */
 	let allocateError = $state(null);
+	/** @type {string|null} */
 	let completeError = $state(null);
+	/** @type {string|null} */
+	let deallocateError = $state(null);
+	/** @type {string|null} */
+	let deleteError = $state(null);
 
 	// Synchronize local state when data prop changes (e.g. navigation).
 	// saving is read via untrack() so changes to it don't re-trigger this effect —
@@ -42,9 +59,25 @@
 		allocations = data.allocations || [];
 		inputSerial = data.unit?.serial || '';
 		isReviewMode = false;
+		bulkAllocations = [];
+		autoCompleteTriggered = false;
 	});
 
-	async function loadWipStock() {
+	// Auto-trigger allocate→review flow when navigated with ?complete=1
+	let autoCompleteTriggered = $state(false);
+	$effect(() => {
+		if (
+			page.url.searchParams.get('complete') === '1' &&
+			!autoCompleteTriggered &&
+			!isComplete &&
+			!loadingWip
+		) {
+			autoCompleteTriggered = true;
+			handleAllocateAll();
+		}
+	});
+
+	async function loadStockData() {
 		const bucketId = workbench.wipLocationId;
 		if (!bucketId) {
 			loadingWip = false;
@@ -60,8 +93,8 @@
 	}
 
 	onMount(() => {
-		if (!error && unit) {
-			loadWipStock();
+		if (!error && unit && unit.is_building) {
+			loadStockData();
 		}
 	});
 
@@ -69,17 +102,20 @@
 
 	// Group BOM requirements and match with allocations
 	const requirements = $derived(
-		bom.map((line) => {
+		bom.map((/** @type {any} */ line) => {
 			const isTrackable = line.raw?.part_detail?.trackable;
-			const allocatedToThis = allocations.filter((a) => a.bomLineId === line.id);
-			const totalAllocatedQty = allocatedToThis.reduce((sum, a) => sum + a.quantity, 0);
+			const allocatedToThis = allocations.filter((/** @type {any} */ a) => a.bomLineId === line.id);
+			const totalAllocatedQty = allocatedToThis.reduce((sum, /** @type {any} */ a) => sum + a.quantity, 0);
 
 			const availableWip = wipStock.filter((s) => String(s.part) === String(line.partId));
 			const totalWipQty = availableWip.reduce((sum, s) => sum + Number(s.quantity), 0);
 
+			const bulkAllocated = bulkAllocations.filter((a) => a.bomLineId === line.id);
+			const totalBulkAllocatedQty = bulkAllocated.reduce((sum, a) => sum + a.quantity, 0);
+
 			const met = isTrackable
 				? totalAllocatedQty >= line.quantityPerUnit
-				: totalWipQty >= line.quantityPerUnit;
+				: (totalWipQty + totalBulkAllocatedQty) >= line.quantityPerUnit;
 
 			return {
 				...line,
@@ -87,13 +123,15 @@
 				allocated: allocatedToThis,
 				totalAllocatedQty,
 				totalWipQty,
+				bulkAllocated,
+				totalBulkAllocatedQty,
 				met,
 				availableWip
 			};
 		})
 	);
 
-	const canComplete = $derived(!isComplete && requirements.every((r) => r.met));
+	const canAllocate = $derived(!isComplete && requirements.every((/** @type {any} */ r) => r.met));
 
 	async function handleSaveSerial() {
 		if (inputSerial === (unit?.serial || '')) return;
@@ -103,13 +141,19 @@
 			const updated = await updateStockItem(unit.pk, { serial: inputSerial });
 			unit = updated;
 		} catch (e) {
-			console.error('Failed to save serial', e);
-			serialError = `Failed to save serial number: ${e.message}`;
+			const err = e instanceof Error ? e : new Error(String(e));
+			console.error('Failed to save serial', err);
+			serialError = `Failed to save serial number: ${err.message}`;
 		} finally {
 			saving = false;
 		}
 	}
 
+	/**
+	 * @param {any} bomLine
+	 * @param {number|string} stockItemPk
+	 * @param {number|string} quantity
+	 */
 	async function handleAllocate(bomLine, stockItemPk, quantity) {
 		allocateError = null;
 		saving = true;
@@ -131,8 +175,9 @@
 			allocations = newAllocs;
 			wipStock = newWip;
 		} catch (e) {
-			console.error('Failed to allocate', e);
-			allocateError = `Failed to allocate part: ${e.message}`;
+			const err = e instanceof Error ? e : new Error(String(e));
+			console.error('Failed to allocate', err);
+			allocateError = `Failed to allocate part: ${err.message}`;
 		} finally {
 			saving = false;
 		}
@@ -143,7 +188,7 @@
 
 		for (const req of requirements) {
 			if (!req.isTrackable) {
-				const missingQty = req.quantityPerUnit - req.totalAllocatedQty;
+				const missingQty = req.quantityPerUnit - req.totalBulkAllocatedQty;
 				if (missingQty <= 0) continue;
 
 				let qtyToFind = missingQty;
@@ -169,11 +214,42 @@
 		}
 	}
 
+	async function handleAllocateAll() {
+		completeError = null;
+		saving = true;
+		try {
+			// Pre-load existing build-level allocations so autoAllocateBulkItems
+			// skips items already allocated (makes this call idempotent).
+			bulkAllocations = await fetchBuildLevelAllocations(boId);
+
+			await autoAllocateBulkItems();
+			const [freshBulk, freshWip] = await Promise.all([
+				fetchBuildLevelAllocations(boId),
+				fetchStockInLocation(workbench.wipLocationId)
+			]);
+			bulkAllocations = freshBulk;
+			wipStock = freshWip;
+			isReviewMode = true;
+		} catch (e) {
+			const err = e instanceof Error ? e : new Error(String(e));
+			console.error('Failed to allocate bulk items', err);
+			completeError = `Failed to allocate: ${err.message}`;
+		} finally {
+			saving = false;
+		}
+	}
+
 	async function handleComplete() {
 		completeError = null;
 		saving = true;
 		try {
-			await autoAllocateBulkItems();
+			if (bulkAllocations.length > 0) {
+				await consumeBuildItems(
+					boId,
+					bulkAllocations.map((a) => ({ build_item: a.id, quantity: a.quantity }))
+				);
+			}
+
 			await completeBuildOutputs(boId, [unit.pk], workbench.wipLocationId);
 
 			unit.is_building = false;
@@ -181,8 +257,55 @@
 			// eslint-disable-next-line svelte/no-navigation-without-resolve
 			await goto('/workbench');
 		} catch (e) {
-			console.error('Failed to complete unit', e);
-			completeError = `Failed to complete unit: ${e.message}`;
+			const err = e instanceof Error ? e : new Error(String(e));
+			console.error('Failed to complete unit', err);
+			completeError = `Failed to complete unit: ${err.message}`;
+		} finally {
+			saving = false;
+		}
+	}
+
+	/**
+	 * @param {number} allocId
+	 * @param {boolean} [isBulk=false]
+	 */
+	async function handleDeallocate(allocId, isBulk = false) {
+		deallocateError = null;
+		saving = true;
+		try {
+			await deallocateStockItems([allocId]);
+			const [newAllocs, newWip, newBulk] = await Promise.all([
+				fetchAllocationsForOutput(boId, unit.pk),
+				fetchStockInLocation(workbench.wipLocationId),
+				fetchBuildLevelAllocations(boId)
+			]);
+			allocations = newAllocs;
+			wipStock = newWip;
+			bulkAllocations = newBulk;
+			if (isBulk) {
+				isReviewMode = false;
+			}
+		} catch (e) {
+			const err = e instanceof Error ? e : new Error(String(e));
+			console.error('Failed to remove allocation', err);
+			deallocateError = `Failed to remove pairing: ${err.message}`;
+		} finally {
+			saving = false;
+		}
+	}
+
+	async function handleDeleteOutput() {
+		deleteError = null;
+		saving = true;
+		try {
+			await deleteOutput(boId, unit.pk);
+			await invalidate('app:build-orders');
+			// eslint-disable-next-line svelte/no-navigation-without-resolve
+			await goto('/workbench');
+		} catch (e) {
+			const err = e instanceof Error ? e : new Error(String(e));
+			console.error('Failed to delete output', err);
+			deleteError = `Failed to delete output: ${err.message}`;
 		} finally {
 			saving = false;
 		}
@@ -197,7 +320,7 @@
 {:else if unit}
 	<ScreenHeader
 		title={`Unit #${unit.pk}`}
-		subtitle={isComplete ? 'Complete' : isReviewMode ? 'Review & Commit' : 'Assembly in Progress'}
+		subtitle={isComplete ? 'Complete' : isReviewMode ? 'Review & Commit' : 'Allocate Components'}
 		backHref="/workbench"
 	/>
 
@@ -209,8 +332,40 @@
 			</div>
 		{/if}
 
-		{#if !isReviewMode}
-			<!-- STATE A: IN PROGRESS -->
+		{#if isComplete}
+			<!-- STATE C: COMPLETED STOCK ITEM -->
+			<Card class="stock-card">
+				<div class="stock-field">
+					<div class="field-label">Part</div>
+					<div class="stock-value">{unit.part_detail?.full_name || unit.part_detail?.name || '—'}</div>
+				</div>
+				<div class="stock-field">
+					<div class="field-label">Serial Number</div>
+					<div class="stock-value mono">{unit.serial || '—'}</div>
+				</div>
+				<div class="stock-field">
+					<div class="field-label">Location</div>
+					<div class="stock-value">{unit.location_detail?.pathstring || unit.location_detail?.name || '—'}</div>
+				</div>
+				<div class="stock-field">
+					<div class="field-label">Status</div>
+					<div class="stock-value">{unit.status_text || '—'}</div>
+				</div>
+			</Card>
+
+			{#if allocations.length > 0}
+				<div class="section-label" style="margin-top: var(--space-lg);">Installed Components</div>
+				<div class="installs-list">
+					{#each allocations as alloc (alloc.id)}
+						<div class="install-row">
+							<span class="install-name">{alloc.partName}</span>
+							<span class="serial-tag">{alloc.serial || '—'}</span>
+						</div>
+					{/each}
+				</div>
+			{/if}
+		{:else if !isReviewMode}
+			<!-- STATE A: ALLOCATE COMPONENTS -->
 			<Card class="serial-card">
 				<label for="out-serial" class="field-label">Output Serial</label>
 				<div class="serial-row">
@@ -267,6 +422,9 @@
 											<div class="alloc-pill">
 												<span class="alloc-label">PAIRED SN:</span>
 												<span class="alloc-value">{alloc.serial || 'N/A'}</span>
+												{#if !isComplete}
+													<button class="unpair-btn" onclick={() => handleDeallocate(alloc.id)} disabled={saving} title="Remove pairing">×</button>
+												{/if}
 											</div>
 										{/each}
 									</div>
@@ -298,10 +456,21 @@
 									</div>
 								{/if}
 							{:else}
-								<div class="bulk-status" class:ready={req.met}>
-									{req.met
-										? 'Available in Bucket'
-										: `Missing from Bucket (${req.totalWipQty} found)`}
+								<div class="bulk-status-row">
+									{#if req.totalBulkAllocatedQty > 0}
+										<div class="bulk-status ready">
+											Allocated: {req.totalBulkAllocatedQty} / {req.quantityPerUnit} {req.unit}
+										</div>
+									{/if}
+									{#if req.totalWipQty > 0}
+										<div class="bulk-status" class:ready={req.met && req.totalBulkAllocatedQty === 0}>
+											{req.totalWipQty} available in bucket
+										</div>
+									{:else if req.totalBulkAllocatedQty < req.quantityPerUnit}
+										<div class="bulk-status">
+											Missing from bucket ({req.totalWipQty} found)
+										</div>
+									{/if}
 								</div>
 							{/if}
 						</div>
@@ -311,6 +480,9 @@
 			{#if allocateError}
 				<p class="action-error">{allocateError}</p>
 			{/if}
+			{#if deallocateError}
+				<p class="action-error">{deallocateError}</p>
+			{/if}
 		{:else}
 			<!-- STATE B: REVIEW & COMMIT -->
 			<div class="review-state">
@@ -319,7 +491,7 @@
 				</div>
 				<h2 class="review-title">Ready to Complete</h2>
 				<p class="review-subtitle">
-					Review the final assembly details before committing to InvenTree.
+					All components allocated. Confirm to consume materials and finalize this unit.
 				</p>
 
 				<Card class="review-card">
@@ -329,30 +501,45 @@
 					</div>
 				</Card>
 
-				<Card class="review-card">
-					<div class="section-label" style="margin-bottom: var(--space-md);">Tracked Components</div>
-					{#if requirements.filter((r) => r.isTrackable).length === 0}
-						<p class="muted-text">No tracked components required.</p>
-					{:else}
+				{#if requirements.filter((r) => r.isTrackable).length > 0}
+					<Card class="review-card">
+						<div class="section-label" style="margin-bottom: var(--space-md);">Tracked Components</div>
 						<div class="tracked-list">
 							{#each requirements.filter((r) => r.isTrackable) as req (req.id)}
 								<div class="tracked-row">
 									<span class="tracked-name">{req.partName}</span>
-									<span class="serial-tag">{req.allocated[0]?.serial || 'Bulk/None'}</span>
+									<span class="serial-tag">{req.allocated[0]?.serial || 'N/A'}</span>
 								</div>
 							{/each}
 						</div>
-					{/if}
-				</Card>
+					</Card>
+				{/if}
 
-				<div class="bulk-warning">
-					<Icon name="inbox" size={18} />
-					<div>
-						<strong>Bulk items auto-consume</strong><br />
-						Required bulk components will be automatically deducted from your WIP Bucket:
-						<strong>{workbench.wipLocationName}</strong>.
-					</div>
-				</div>
+				{#if requirements.filter((r) => !r.isTrackable).length > 0}
+					<Card class="review-card">
+						<div class="section-label" style="margin-bottom: var(--space-md);">Bulk Components</div>
+						<div class="tracked-list">
+							{#each requirements.filter((r) => !r.isTrackable) as req (req.id)}
+								<div class="bulk-alloc-row">
+									<div class="bulk-alloc-info">
+										<span class="tracked-name">{req.partName}</span>
+										<span class="bulk-alloc-qty">{req.totalBulkAllocatedQty} / {req.quantityPerUnit} {req.unit} allocated</span>
+									</div>
+									<div class="bulk-alloc-actions">
+										{#each req.bulkAllocated as alloc (alloc.id)}
+											<button
+												class="unpair-btn"
+												onclick={() => handleDeallocate(alloc.id, true)}
+												disabled={saving}
+												title="Remove allocation"
+											>×</button>
+										{/each}
+									</div>
+								</div>
+							{/each}
+						</div>
+					</Card>
+				{/if}
 			</div>
 		{/if}
 	</div>
@@ -372,15 +559,27 @@
 					</button>
 					<button
 						class="build-btn"
-						disabled={!canComplete || saving}
-						onclick={() => (isReviewMode = true)}
+						disabled={!canAllocate || saving}
+						onclick={handleAllocateAll}
 					>
-						Review Unit
+						Allocate
 					</button>
 				</div>
+				{#if completeError}
+					<p class="action-error">{completeError}</p>
+				{/if}
+				{#if deleteError}
+					<p class="action-error">{deleteError}</p>
+				{/if}
+				<button class="delete-btn" onclick={handleDeleteOutput} disabled={saving}>
+					Delete Output
+				</button>
 			{:else}
 				{#if completeError}
 				<p class="action-error">{completeError}</p>
+			{/if}
+			{#if deallocateError}
+				<p class="action-error">{deallocateError}</p>
 			{/if}
 			<div class="commit-hint">This action consumes materials and finalizes the unit.</div>
 				<div class="btn-row">
@@ -529,13 +728,14 @@
 	.req-card {
 		background: var(--surface-container-high);
 		border: 1px solid var(--outline-variant);
-		border-left: 3px solid var(--tertiary);
-		border-radius: var(--radius-lg);
+		border-top: 3px solid var(--tertiary);
+		border-radius: var(--radius-md);
 		padding: var(--space-md);
+		overflow: hidden;
 	}
 
 	.req-card.met {
-		border-left-color: var(--success);
+		border-top-color: var(--success);
 	}
 
 	.req-header {
@@ -576,6 +776,7 @@
 		padding: var(--space-sm) var(--space-md);
 		border-radius: var(--radius-md);
 		display: flex;
+		align-items: center;
 		gap: var(--space-sm);
 		font-family: var(--font-mono);
 		font-size: 0.75rem;
@@ -623,8 +824,14 @@
 		text-align: center;
 	}
 
-	.bulk-status {
+	.bulk-status-row {
 		margin-top: var(--space-md);
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-xs);
+	}
+
+	.bulk-status {
 		font-size: 0.75rem;
 		font-weight: 800;
 		color: var(--tertiary);
@@ -695,12 +902,6 @@
 		border: 1px solid var(--outline-variant);
 	}
 
-	.muted-text {
-		font-size: 0.875rem;
-		color: var(--text-muted);
-		font-style: italic;
-	}
-
 	.tracked-list {
 		display: flex;
 		flex-direction: column;
@@ -726,23 +927,34 @@
 		font-size: 0.875rem;
 	}
 
-	.bulk-warning {
+	.bulk-alloc-row {
 		display: flex;
-		align-items: flex-start;
-		gap: var(--space-md);
-		background: var(--surface-container-low);
-		border: 1px solid var(--outline-variant);
-		padding: var(--space-lg);
-		border-radius: var(--radius-lg);
-		font-size: 0.8125rem;
-		color: var(--on-surface);
-		line-height: 1.5;
+		justify-content: space-between;
+		align-items: center;
+		padding-bottom: var(--space-sm);
+		border-bottom: 1px solid var(--outline-variant);
 	}
 
-	.bulk-warning :global(svg) {
-		flex-shrink: 0;
-		color: var(--primary-fixed-dim);
-		margin-top: 2px;
+	.bulk-alloc-row:last-child {
+		border-bottom: none;
+		padding-bottom: 0;
+	}
+
+	.bulk-alloc-info {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-xs);
+	}
+
+	.bulk-alloc-qty {
+		font-size: 0.75rem;
+		font-weight: 600;
+		color: var(--text-muted);
+	}
+
+	.bulk-alloc-actions {
+		display: flex;
+		gap: var(--space-xs);
 	}
 
 	/* Actions footer */
@@ -832,5 +1044,86 @@
 		color: var(--tertiary);
 		margin-top: var(--space-sm);
 		margin-bottom: 0;
+	}
+
+	.unpair-btn {
+		margin-left: auto;
+		background: transparent;
+		color: var(--tertiary);
+		font-size: 1rem;
+		line-height: 1;
+		padding: 0 var(--space-xs);
+		border-radius: var(--radius-sm);
+		transition: opacity 0.1s;
+	}
+
+	.unpair-btn:active {
+		opacity: 0.6;
+	}
+
+	.delete-btn {
+		width: 100%;
+		padding: var(--space-md);
+		background: transparent;
+		color: var(--tertiary);
+		border: 1px solid var(--tertiary);
+		border-radius: var(--radius-md);
+		font-weight: 700;
+		font-size: 0.8125rem;
+		transition: opacity 0.1s;
+	}
+
+	.delete-btn:active {
+		opacity: 0.6;
+	}
+
+	.delete-btn:disabled {
+		opacity: 0.4;
+	}
+
+	/* Completed stock item view */
+	.stock-field {
+		display: flex;
+		justify-content: space-between;
+		align-items: baseline;
+		padding: var(--space-sm) 0;
+		border-bottom: 1px solid var(--outline-variant);
+	}
+
+	.stock-field:last-child {
+		border-bottom: none;
+	}
+
+	.stock-value {
+		font-weight: 700;
+		color: var(--on-surface);
+		font-size: 0.9375rem;
+		text-align: right;
+	}
+
+	.stock-value.mono {
+		font-family: var(--font-mono);
+	}
+
+	.installs-list {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-xs);
+	}
+
+	.install-row {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		background: var(--surface-container-high);
+		border: 1px solid var(--outline-variant);
+		border-radius: var(--radius-md);
+		padding: var(--space-sm) var(--space-md);
+	}
+
+	.install-name {
+		font-weight: 700;
+		font-size: 0.875rem;
+		color: var(--on-surface);
 	}
 </style>

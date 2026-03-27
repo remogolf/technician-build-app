@@ -4,17 +4,11 @@
 	import BuildOrderCard from '$lib/components/BuildOrderCard.svelte';
 	import Card from '$lib/components/Card.svelte';
 	import Icon from '$lib/components/Icon.svelte';
-	import { workbench } from '$lib/state/workbench.svelte.js';
 
 	let { data } = $props();
 
 	let buildOrders = $derived(data.buildOrders);
 	let error = $derived(data.error);
-
-	function handleSelect(bo) {
-		workbench.selectOrder(bo.id, bo.reference);
-		goto('/workbench');
-	}
 </script>
 
 <div class="orders-page">
@@ -26,7 +20,7 @@
 				<div class="error-state">
 					<Icon name="alert" size={36} />
 					<p class="error-msg">{error}</p>
-					<button class="retry-btn" onclick={() => invalidateAll()}>Retry Connection</button>
+					<button class="retry-btn" onclick={async () => await invalidateAll()}>Retry Connection</button>
 				</div>
 			</Card>
 		{:else if buildOrders.length === 0}
@@ -37,7 +31,7 @@
 		{:else}
 			<div class="orders-list">
 				{#each buildOrders as bo (bo.id)}
-					<BuildOrderCard {bo} onclick={() => handleSelect(bo)} />
+					<BuildOrderCard {bo} onclick={async () => await goto(`/orders/${bo.id}`)} />
 				{/each}
 			</div>
 		{/if}

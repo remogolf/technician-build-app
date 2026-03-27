@@ -1,25 +1,21 @@
 // @ts-nocheck
 import { apiFetch } from './client';
 
-/**
- * Maps API status codes to UI standard strings.
- */
+/** Normalizes paginated or plain-array API responses. */
+function normalizeResults(data) {
+	return Array.isArray(data) ? data : (data?.results || []);
+}
+
+const BUILD_STATUS_MAP = {
+	10: 'pending',
+	20: 'in_progress',
+	30: 'on_hold',
+	40: 'cancelled',
+	50: 'complete'
+};
+
 function mapStatus(status) {
-	const numeric = Number(status);
-	switch (numeric) {
-		case 10:
-			return 'pending';
-		case 20:
-			return 'in_progress';
-		case 30:
-			return 'on_hold';
-		case 40:
-			return 'cancelled';
-		case 50:
-			return 'complete';
-		default:
-			return 'pending';
-	}
+	return BUILD_STATUS_MAP[Number(status)] ?? 'pending';
 }
 
 function mapBuildOrder(bo) {
@@ -47,8 +43,7 @@ function mapBuildOrder(bo) {
 
 export async function fetchBuildOrders(options = {}) {
 	const data = await apiFetch('/api/build/?part_detail=true', options);
-	const results = Array.isArray(data) ? data : data?.results || [];
-	return results.map(mapBuildOrder);
+	return normalizeResults(data).map(mapBuildOrder);
 }
 
 export async function fetchBuildOrderById(id, options = {}) {
@@ -66,8 +61,7 @@ export async function createSingleOutput(id, locationId, serial = '', options = 
 	const response = await apiFetch(`/api/build/${id}/create-output/`, {
 		...options,
 		method: 'POST',
-		body: JSON.stringify(payload),
-		headers: { 'Content-Type': 'application/json', ...(options.headers || {}) }
+		body: JSON.stringify(payload)
 	});
 
 	// create-output returns an array of StockItem
@@ -85,20 +79,18 @@ export async function completeBuildOutputs(buildId, outputIds, locationId, optio
 				output: id,
 				quantity: 1
 			}))
-		}),
-		headers: { 'Content-Type': 'application/json', ...(options.headers || {}) }
+		})
 	});
 }
 
 export async function fetchAllBuildOutputs(buildId, options = {}) {
 	const data = await apiFetch(`/api/stock/?build=${buildId}`, options);
-	return Array.isArray(data) ? data : data?.results || [];
+	return normalizeResults(data);
 }
 
 export async function fetchLocations(options = {}) {
 	const data = await apiFetch('/api/stock/location/?structural=false', options);
-	const results = Array.isArray(data) ? data : data?.results || [];
-	return results.map((loc) => ({
+	return normalizeResults(data).map((loc) => ({
 		id: loc.pk,
 		name: loc.name,
 		path: loc.pathstring
@@ -110,8 +102,7 @@ export async function fetchStockForPart(partId, options = {}) {
 		`/api/stock/?part=${partId}&in_stock=true&allocated=false&location_detail=true`,
 		options
 	);
-	const results = Array.isArray(data) ? data : data?.results || [];
-	return results.map((item) => ({
+	return normalizeResults(data).map((item) => ({
 		id: item.pk,
 		partId: item.part,
 		locationId: item.location,
@@ -128,8 +119,7 @@ export async function updateStockItem(id, data, options = {}) {
 	return await apiFetch(`/api/stock/${id}/`, {
 		...options,
 		method: 'PATCH',
-		body: JSON.stringify(data),
-		headers: { 'Content-Type': 'application/json', ...(options.headers || {}) }
+		body: JSON.stringify(data)
 	});
 }
 
@@ -137,8 +127,15 @@ export async function allocateStock(buildId, items, options = {}) {
 	return await apiFetch(`/api/build/${buildId}/allocate/`, {
 		...options,
 		method: 'POST',
-		body: JSON.stringify({ items }),
-		headers: { 'Content-Type': 'application/json', ...(options.headers || {}) }
+		body: JSON.stringify({ items })
+	});
+}
+
+export async function consumeBuildItems(buildId, items, options = {}) {
+	return await apiFetch(`/api/build/${buildId}/consume/`, {
+		...options,
+		method: 'POST',
+		body: JSON.stringify({ items })
 	});
 }
 
@@ -150,17 +147,16 @@ export async function transferStock(items, toLocationId, notes = '', options = {
 			items: items.map((i) => ({ pk: i.pk, quantity: i.quantity })),
 			location: Number(toLocationId),
 			notes
-		}),
-		headers: { 'Content-Type': 'application/json', ...(options.headers || {}) }
+		})
 	});
 }
 
 export async function fetchStockInLocation(locationId, options = {}) {
 	const data = await apiFetch(
-		`/api/stock/?location=${locationId}&in_stock=true&allocated=false&part_detail=true`,
+		`/api/stock/?location=${locationId}&in_stock=true&allocated=false&part_detail=true&location_detail=true`,
 		options
 	);
-	return Array.isArray(data) ? data : data?.results || [];
+	return normalizeResults(data);
 }
 
 export async function fetchAllocationsForOutput(buildId, outputId, options = {}) {
@@ -168,8 +164,7 @@ export async function fetchAllocationsForOutput(buildId, outputId, options = {})
 		`/api/build/item/?build=${buildId}&output=${outputId}&part_detail=true&stock_detail=true`,
 		options
 	);
-	const results = Array.isArray(data) ? data : data?.results || [];
-	return results.map((item) => ({
+	return normalizeResults(data).map((item) => ({
 		id: item.pk,
 		bomLineId: String(item.build_line),
 		stockItemId: item.stock_item,
@@ -179,14 +174,29 @@ export async function fetchAllocationsForOutput(buildId, outputId, options = {})
 	}));
 }
 
+export async function fetchBuildLevelAllocations(buildId, options = {}) {
+	const data = await apiFetch(
+		`/api/build/item/?build=${buildId}&part_detail=true&stock_detail=true`,
+		options
+	);
+	return normalizeResults(data)
+		.filter((item) => !item.output)
+		.map((item) => ({
+			id: item.pk,
+			bomLineId: String(item.build_line),
+			stockItemId: item.stock_item,
+			quantity: Number(item.quantity),
+			partName: item.stock_item_detail?.part_detail?.full_name || item.part_detail?.full_name || ''
+		}));
+}
+
 export async function fetchBuildOrderBOM(buildId, options = {}) {
 	const data = await apiFetch(
 		`/api/build/line/?build=${buildId}&part_detail=true&bom_item_detail=true`,
 		options
 	);
-	const results = Array.isArray(data) ? data : data?.results || [];
 
-	return results.map((line) => ({
+	return normalizeResults(data).map((line) => ({
 		id: String(line.pk),
 		partId: line.part,
 		partName: line.part_detail?.full_name || line.part_detail?.name || `Part ${line.part}`,
@@ -206,8 +216,7 @@ export async function searchStock(query, options = {}) {
 		`/api/stock/?search=${encodeURIComponent(query)}&in_stock=true&part_detail=true&location_detail=true`,
 		options
 	);
-	const results = Array.isArray(data) ? data : data?.results || [];
-	return results;
+	return normalizeResults(data);
 }
 
 export async function fetchNextSerialNumber(partId, options = {}) {
@@ -217,4 +226,33 @@ export async function fetchNextSerialNumber(partId, options = {}) {
 
 export async function fetchStockItemById(id, options = {}) {
 	return await apiFetch(`/api/stock/${id}/?part_detail=true`, options);
+}
+
+export async function deallocateStockItems(allocationIds, options = {}) {
+	return await apiFetch('/api/build/item/', {
+		...options,
+		method: 'DELETE',
+		body: JSON.stringify({ items: allocationIds.map(Number) })
+	});
+}
+
+export async function deleteOutput(buildId, outputId, options = {}) {
+	return await apiFetch(`/api/build/${buildId}/delete-outputs/`, {
+		...options,
+		method: 'POST',
+		body: JSON.stringify({ outputs: [{ output: Number(outputId) }] })
+	});
+}
+
+export async function scrapBuildOutputs(buildId, outputs, locationId, notes = '', discardAllocations = true, options = {}) {
+	return await apiFetch(`/api/build/${buildId}/scrap-outputs/`, {
+		...options,
+		method: 'POST',
+		body: JSON.stringify({
+			outputs: outputs.map(Number),
+			location: Number(locationId),
+			discard_allocations: discardAllocations,
+			notes
+		})
+	});
 }

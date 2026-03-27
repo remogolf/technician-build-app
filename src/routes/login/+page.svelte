@@ -1,95 +1,208 @@
 <script>
-  import { goto } from '$app/navigation';
-  import { auth } from '$lib/stores/auth';
-  import { loginToInvenTree } from '$lib/api/auth';
+	import { onMount } from 'svelte';
+	import { goto } from '$app/navigation';
+	import { authState } from '$lib/state/auth.svelte.js';
+	import { loginToInvenTree } from '$lib/api/auth';
+	import ScreenHeader from '$lib/components/ScreenHeader.svelte';
+	import Card from '$lib/components/Card.svelte';
 
-  let serverUrl = '';
-  let username = '';
-  let password = '';
-  let loading = false;
-  let error = '';
+	let serverUrl = $state('');
+	let username = $state('');
+	let password = $state('');
+	let loading = $state(false);
+	let error = $state('');
 
-  async function handleLogin() {
-    loading = true;
-    error = '';
+	// Startup guard: Redirect if already authenticated
+	onMount(() => {
+		if (authState.isAuthenticated) {
+			goto('/', { replaceState: true });
+		}
+		serverUrl = authState.serverUrl || '';
+	});
 
-    console.log('login attempt', { serverUrl, username });
+	/** @param {SubmitEvent} e */
+	async function handleLogin(e) {
+		e.preventDefault();
 
-    try {
-      const session = await loginToInvenTree({
-        serverUrl,
-        username,
-        password
-      });
+		if (loading) return;
+		if (!serverUrl.trim() || !username.trim() || !password) {
+			error = 'Server URL, username, and password are required';
+			return;
+		}
 
-      console.log('login session', session);
+		loading = true;
+		error = '';
 
-      auth.setAuth(session);
+		try {
+			const session = await loginToInvenTree({
+				serverUrl: serverUrl.trim(),
+				username: username.trim(),
+				password
+			});
 
-      console.log('saved auth', session);
-      await goto('/');
-    } catch (/** @type {any} */ err) {
-      console.error('login failed', err);
-      error = err?.message || 'Login failed';
-    } finally {
-      loading = false;
-    }
-  }
+			authState.setAuth(session);
+			await goto('/orders');
+		} catch (/** @type {any} */ err) {
+			console.error('Login failed:', err);
+			error = err?.message || 'An unexpected error occurred';
+		} finally {
+			loading = false;
+		}
+	}
 </script>
 
-<div class="page">
-  <h1>Technician Build App</h1>
+<div class="login-page">
+	<ScreenHeader title="Sign in" subtitle="Technician Build App" showLogout={false} />
 
-  <form on:submit|preventDefault={handleLogin} class="login-form">
-    <label>
-      Server URL
-      <input bind:value={serverUrl} placeholder="https://inventree.example.com" />
-    </label>
+	<main class="content p-6">
+		<div class="intro">
+			<p>Access your InvenTree workshop to begin assembly orders.</p>
+		</div>
 
-    <label>
-      Username
-      <input bind:value={username} />
-    </label>
+		<Card>
+			<form onsubmit={handleLogin} class="login-form">
+				<div class="field">
+					<label for="server">Server URL</label>
+					<input
+						id="server"
+						type="url"
+						bind:value={serverUrl}
+						placeholder="https://your-inventree.com"
+						required
+						disabled={loading}
+					/>
+				</div>
 
-    <label>
-      Password
-      <input bind:value={password} type="password" />
-    </label>
+				<div class="field">
+					<label for="username">Username</label>
+					<input
+						id="username"
+						type="text"
+						bind:value={username}
+						placeholder="Enter username"
+						required
+						autocomplete="username"
+						disabled={loading}
+					/>
+				</div>
 
-    <button type="submit" disabled={loading}>
-      {#if loading}Signing in...{:else}Sign in{/if}
-    </button>
+				<div class="field">
+					<label for="password">Password</label>
+					<input
+						id="password"
+						type="password"
+						bind:value={password}
+						placeholder="Enter password"
+						required
+						autocomplete="current-password"
+						disabled={loading}
+					/>
+				</div>
 
-    {#if error}
-      <p class="error">{error}</p>
-    {/if}
-  </form>
+				{#if error}
+					<div class="error-box">
+						{error}
+					</div>
+				{/if}
+
+				<button type="submit" class="login-btn" disabled={loading}>
+					{loading ? 'Signing in...' : 'Sign In'}
+				</button>
+			</form>
+		</Card>
+
+		<p class="footer-note">Industrial Build Client v0.1.0</p>
+	</main>
 </div>
 
 <style>
-  .page {
-    padding: 1rem;
-    max-width: 28rem;
-    margin: 0 auto;
-  }
+	.login-page {
+		min-height: 100vh;
+		background: var(--surface);
+	}
 
-  .login-form {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-  }
+	.content {
+		max-width: 480px;
+		margin: 0 auto;
+	}
 
-  input {
-    width: 100%;
-    padding: 0.75rem;
-    box-sizing: border-box;
-  }
+	.intro {
+		text-align: center;
+		color: var(--text-muted);
+		margin-bottom: var(--space-xl);
+		font-weight: 600;
+		font-size: 0.9375rem;
+	}
 
-  button {
-    padding: 0.9rem;
-  }
+	.login-form {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-lg);
+	}
 
-  .error {
-    color: red;
-  }
+	.field label {
+		display: block;
+		font-size: 0.75rem;
+		font-weight: 800;
+		color: var(--text-muted);
+		text-transform: uppercase;
+		margin-bottom: var(--space-xs);
+		letter-spacing: 0.05em;
+	}
+
+	.field input {
+		width: 100%;
+		padding: var(--space-md);
+		border: none;
+		border-bottom: 2px solid transparent;
+		border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+		background: var(--surface-container-highest);
+		color: var(--on-surface);
+		font-weight: 600;
+		outline: none;
+		transition: all 0.2s;
+	}
+
+	.field input:focus {
+		border-bottom-color: var(--primary);
+		background: var(--surface-container-high);
+	}
+
+	.error-box {
+		padding: var(--space-md);
+		background: var(--surface-container-low);
+		border-left: 4px solid var(--tertiary);
+		border-radius: var(--radius-md);
+		color: var(--tertiary);
+		font-size: 0.8125rem;
+		font-weight: 700;
+		text-align: left;
+	}
+
+	.login-btn {
+		width: 100%;
+		min-height: var(--space-12);
+		background: linear-gradient(180deg, var(--primary), var(--primary-container));
+		color: var(--on-primary);
+		border-radius: var(--radius-md);
+		font-weight: 700;
+		font-family: var(--font-display);
+		font-size: 1.125rem;
+		margin-top: var(--space-sm);
+		box-shadow: var(--shadow-ambient);
+	}
+
+	.login-btn:disabled {
+		opacity: 0.5;
+		box-shadow: none;
+	}
+
+	.footer-note {
+		text-align: center;
+		margin-top: var(--space-xl);
+		font-size: 0.75rem;
+		font-weight: 600;
+		color: var(--text-muted);
+		opacity: 0.5;
+	}
 </style>
