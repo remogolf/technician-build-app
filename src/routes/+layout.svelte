@@ -48,9 +48,9 @@
 		--outline-variant: rgba(69, 71, 77, 0.15); /* Ghost Border */
 
 		/* Status Colors (Traffic) */
-		--success: var(--secondary);
-		--warning: var(--tertiary);
-		--error: var(--tertiary);
+		--success: #10b981;
+		--warning: #f59e0b;
+		--error: #ef4444;
 		--info: var(--primary-fixed-dim);
 
 		/* Typography */
@@ -59,55 +59,55 @@
 		--font-mono: 'Courier New', monospace;
 
 		/* Spacing & Radii */
-		--radius-sm: 0.25rem;
-		--radius-md: 0.375rem; /* 6px */
-		--radius-lg: 0.5rem; /* 8px */
-		--radius-xl: 1rem;
+		--radius-sm: 0.375rem;
+		--radius-md: 0.5rem; 
+		--radius-lg: 0.75rem; 
+		--radius-xl: 1.25rem;
 
-		--space-1: 0.35rem; /* Status Bar Height */
-		--space-2: 0.7rem; /* List Gap */
-		--space-xs: 0.25rem;
-		--space-sm: 0.5rem;
-		--space-md: 0.75rem;
-		--space-lg: 1rem;
-		--space-xl: 1.5rem;
-		--space-8: 2.75rem;
-		--space-10: 3.5rem;
-		--space-12: 4rem; /* Minimum Tap Target */
-		--space-16: 5.5rem;
+		--space-1: 0.35rem; 
+		--space-2: 0.75rem; 
+		--space-xs: 0.375rem;
+		--space-sm: 0.625rem;
+		--space-md: 1rem;
+		--space-lg: 1.25rem;
+		--space-xl: 1.75rem;
+		--space-8: 3rem;
+		--space-10: 4rem;
+		--space-12: 4.5rem; 
+		--space-16: 6rem;
 
 		/* Interaction */
-		--touch-target: 4rem;
+		--touch-target: 4.5rem;
 		--shadow-ambient: 0 4px 24px 0 rgba(214, 228, 249, 0.08);
 	}
 
 	:global(:root[data-theme='light']) {
-		--surface: #f1f5f9;
-		--surface-container-low: #e2e8f0;
-		--surface-container: #cbd5e1;
+		--surface: #f8fafc;
+		--surface-container-low: #f1f5f9;
+		--surface-container: #e2e8f0;
 		--surface-container-high: #ffffff;
 		--surface-container-highest: #f8fafc;
 		--surface-variant: rgba(255, 255, 255, 0.6);
 
 		--on-surface: #0f172a;
-		--text-muted: #475569;
+		--text-muted: #64748b;
 
 		--primary: #2563eb;
 		--primary-container: #dbeafe;
 		--on-primary: #ffffff;
 
 		--secondary: #64748b;
-		--secondary-container: #e2e8f0;
+		--secondary-container: #f1f5f9;
 		--secondary-fixed-dim: #94a3b8;
 
-		--tertiary: #ea580c; /* Safety Orange adapted for light theme */
+		--tertiary: #ea580c; 
 		--on-tertiary-container: #fffedd;
 
 		--primary-fixed-dim: #3b82f6;
 
-		--outline-variant: rgba(15, 23, 42, 0.1);
+		--outline-variant: rgba(15, 23, 42, 0.08);
 
-		--shadow-ambient: 0 4px 24px 0 rgba(15, 23, 42, 0.08);
+		--shadow-ambient: 0 4px 24px 0 rgba(15, 23, 42, 0.05);
 	}
 
 	:global(body) {
@@ -115,8 +115,8 @@
 		background: var(--surface);
 		color: var(--on-surface);
 		font-family: var(--font-body);
-		font-size: 0.875rem;
-		line-height: 1.5;
+		font-size: 1rem;
+		line-height: 1.6;
 		-webkit-tap-highlight-color: transparent;
 		overscroll-behavior-y: none;
 	}
@@ -134,11 +134,11 @@
 
 	:global(input, select) {
 		font-family: inherit;
-		font-size: 16px; /* Prevents auto-zoom on iOS */
+		font-size: 1rem; /* Prevents auto-zoom on iOS */
 		background: var(--surface-container-highest);
 		color: var(--on-surface);
 		border: none;
-		border-bottom: 2px solid transparent;
+		border-bottom: 2.5px solid transparent;
 		border-radius: var(--radius-sm) var(--radius-sm) 0 0;
 	}
 

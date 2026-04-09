@@ -18,6 +18,7 @@
 	// Pick Modal State
 	let selectedLine = $state(null);
 	let availableStock = $state([]);
+	let stockByLocation = $state([]);
 	let loadingStock = $state(false);
 	let transferQty = $state({});
 	let transferring = $state(false);
@@ -54,7 +55,6 @@
 	}
 
 	function getRequiredForSession(line) {
-		// Calculate what we need for the session vs what's available in BO
 		const sessionReq = workbench.workQuantity * line.quantityPerUnit;
 		return Math.min(line.required, sessionReq);
 	}
@@ -81,6 +81,15 @@
 			availableStock.forEach((s) => {
 				transferQty[s.id] = Math.min(s.quantity, missing);
 			});
+
+			// Group by location
+			const groups = new Map();
+			for (const s of availableStock) {
+				const key = s.locationPath;
+				if (!groups.has(key)) groups.set(key, { locationPath: key, items: [] });
+				groups.get(key).items.push(s);
+			}
+			stockByLocation = Array.from(groups.values());
 		} catch (e) {
 			console.error('Failed to load stock for picking', e);
 		} finally {
@@ -91,6 +100,7 @@
 	function closePickModal() {
 		selectedLine = null;
 		availableStock = [];
+		stockByLocation = [];
 	}
 
 	async function handleTransfer(stockItem) {
@@ -174,28 +184,36 @@
 			<p class="transfer-error">{transferError}</p>
 		{/if}
 		<div class="stock-options">
-			{#each availableStock as item (item.id)}
-				<div class="stock-item">
-					<div class="stock-header">
-						<span class="location"><Icon name="map-pin" size={12} /> {item.locationPath}</span>
-						<span class="avail">Avail: {item.quantity}</span>
+			{#each stockByLocation as group (group.locationPath)}
+				<div class="location-group">
+					<div class="location-header">
+						<Icon name="map-pin" size={12} />
+						{group.locationPath}
 					</div>
-					{#if item.serial}
-						<div class="serial">SN: {item.serial}</div>
-					{/if}
-					<div class="transfer-row">
-						<input
-							type="number"
-							class="qty-input"
-							min="1"
-							max={item.quantity}
-							bind:value={transferQty[item.id]}
-							disabled={transferring || !!item.serial}
-						/>
-						<button class="move-btn" onclick={() => handleTransfer(item)} disabled={transferring}>
-							{transferring ? '...' : 'Move to WIP'}
-						</button>
-					</div>
+					{#each group.items as item (item.id)}
+						<div class="stock-item">
+							<div class="stock-header">
+								<span class="avail-label">Available</span>
+								<span class="avail">{item.quantity}</span>
+							</div>
+							{#if item.serial}
+								<div class="serial">SN: {item.serial}</div>
+							{/if}
+							<div class="transfer-row">
+								<input
+									type="number"
+									class="qty-input"
+									min="1"
+									max={item.quantity}
+									bind:value={transferQty[item.id]}
+									disabled={transferring || !!item.serial}
+								/>
+								<button class="move-btn" onclick={() => handleTransfer(item)} disabled={transferring}>
+									{transferring ? '...' : 'Move to WIP'}
+								</button>
+							</div>
+						</div>
+					{/each}
 				</div>
 			{/each}
 		</div>
@@ -243,9 +261,9 @@
 
 	.part-name {
 		font-weight: 800;
-		font-size: 0.9375rem;
+		font-size: 1.125rem;
 		color: var(--on-surface);
-		line-height: 1.2;
+		line-height: 1.3;
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
@@ -253,19 +271,19 @@
 
 	.sub-row {
 		display: flex;
-		gap: var(--space-sm);
-		margin-top: 2px;
+		gap: var(--space-md);
+		margin-top: 4px;
 	}
 
 	.sku {
-		font-size: 0.6875rem;
+		font-size: 0.8125rem;
 		font-weight: 700;
 		color: var(--text-muted);
 		font-family: var(--font-mono);
 	}
 
 	.unit-label {
-		font-size: 0.6875rem;
+		font-size: 0.8125rem;
 		font-weight: 600;
 		color: var(--text-muted);
 	}
@@ -276,7 +294,7 @@
 	}
 
 	.qty-value {
-		font-size: 1.25rem;
+		font-size: 1.5rem;
 		font-weight: 900;
 		line-height: 1;
 		color: var(--tertiary);
@@ -288,23 +306,23 @@
 	}
 
 	.qty-label {
-		font-size: 0.625rem;
-		font-weight: 900;
+		font-size: 0.75rem;
+		font-weight: 800;
 		text-transform: uppercase;
 		letter-spacing: 0.06em;
 		color: var(--text-muted);
 	}
 
 	.qty-needed {
-		font-size: 0.6875rem;
+		font-size: 0.8125rem;
 		font-weight: 700;
 		color: var(--text-muted);
-		margin-top: 2px;
+		margin-top: 4px;
 	}
 
 	.pick-btn {
 		width: 100%;
-		min-height: 44px;
+		min-height: 48px;
 		background: var(--surface-container-high);
 		color: var(--on-surface);
 		font-family: var(--font-display);
@@ -336,6 +354,24 @@
 		gap: var(--space-md);
 	}
 
+	.location-group {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-sm);
+	}
+
+	.location-header {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+		font-size: 0.75rem;
+		font-weight: 800;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		color: var(--primary);
+		padding: 0 var(--space-xs);
+	}
+
 	.stock-item {
 		background: var(--surface-container-low);
 		padding: var(--space-md);
@@ -350,14 +386,8 @@
 		margin-bottom: var(--space-sm);
 	}
 
-	.location {
-		display: flex;
-		align-items: center;
-		gap: 4px;
-		color: var(--on-surface);
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
+	.avail-label {
+		color: var(--text-muted);
 	}
 
 	.avail {

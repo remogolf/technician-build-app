@@ -14,7 +14,15 @@ const BUILD_STATUS_MAP = {
 	50: 'complete'
 };
 
-function mapStatus(status) {
+function mapStatus(status, statusText) {
+	// Prefer status_text from the server — more reliable across InvenTree versions
+	const t = (statusText || '').toLowerCase().trim();
+	if (t === 'complete' || t === 'production complete' || t === 'finished') return 'complete';
+	if (t === 'cancelled' || t === 'canceled') return 'cancelled';
+	if (t === 'on hold' || t === 'hold') return 'on_hold';
+	if (t === 'production' || t === 'in production' || t === 'in progress' || t === 'active') return 'in_progress';
+	if (t === 'pending') return 'pending';
+	// Fall back to numeric code
 	return BUILD_STATUS_MAP[Number(status)] ?? 'pending';
 }
 
@@ -31,7 +39,7 @@ function mapBuildOrder(bo) {
 			bo?.part_name ||
 			bo?.part_detail?.name ||
 			`Part ${bo?.part ?? ''}`,
-		status: mapStatus(bo?.status),
+		status: mapStatus(bo?.status, bo?.status_text),
 		statusText: bo?.status_text || '',
 		built,
 		target,
@@ -255,4 +263,32 @@ export async function scrapBuildOutputs(buildId, outputs, locationId, notes = ''
 			notes
 		})
 	});
+}
+
+export async function finishBuildOrder(buildId, options = {}) {
+	return await apiFetch(`/api/build/${buildId}/finish/`, {
+		...options,
+		method: 'POST',
+		body: JSON.stringify({
+			accept_overallocated: 'accept',
+			accept_unallocated: true,
+			accept_incomplete: true
+		})
+	});
+}
+
+export async function cancelBuildOrder(buildId, options = {}) {
+	return await apiFetch(`/api/build/${buildId}/cancel/`, {
+		...options,
+		method: 'POST',
+		body: JSON.stringify({ remove_allocated_stock: false, remove_incomplete_outputs: false })
+	});
+}
+
+export async function holdBuildOrder(buildId, options = {}) {
+	return await apiFetch(`/api/build/${buildId}/hold/`, { ...options, method: 'POST' });
+}
+
+export async function issueBuildOrder(buildId, options = {}) {
+	return await apiFetch(`/api/build/${buildId}/issue/`, { ...options, method: 'POST' });
 }

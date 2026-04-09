@@ -49,6 +49,7 @@
 
 	function handleOrderSelect(bo) {
 		workbench.selectOrder(bo.id, bo.reference);
+		workbench.setOrderDetails(bo.target, bo.built);
 		isPickingOrder = false;
 	}
 
@@ -59,24 +60,36 @@
 	function handleQtyChange(e) {
 		workbench.setWorkQuantity(Number(e.target.value));
 	}
+
+	const boTarget = $derived(workbench.buildOrderTarget);
+	const boBuilt = $derived(workbench.buildOrderBuilt);
 </script>
 
 <div class="workbench-header">
 	<button class="bo-btn" onclick={openOrderPicker} aria-label="Select build order">
 		<span class="label">BUILD ORDER</span>
 		<span class="value">{workbench.buildOrderRef || 'None Selected'}</span>
+		{#if boTarget > 0}
+			<span class="bo-built">{boBuilt} / {boTarget} built</span>
+		{/if}
 	</button>
 	<div class="divider"></div>
 	<div class="session-info">
 		<div class="item qty">
 			<span class="label">GOAL QTY</span>
-			<input
-				type="number"
-				min="1"
-				value={workbench.workQuantity}
-				onchange={handleQtyChange}
-				class="qty-input"
-			/>
+			<div class="qty-row">
+				<input
+					type="number"
+					min="1"
+					max={boTarget > 0 ? boTarget : undefined}
+					value={workbench.workQuantity}
+					onchange={handleQtyChange}
+					class="qty-input"
+				/>
+				{#if boTarget > 0}
+					<span class="qty-of">/ {boTarget}</span>
+				{/if}
+			</div>
 		</div>
 	</div>
 	<button class="config-btn" onclick={openConfig} aria-label="Configure WIP bucket">
@@ -193,15 +206,15 @@
 	}
 
 	.label {
-		font-size: 0.625rem;
-		font-weight: 900;
+		font-size: 0.75rem;
+		font-weight: 800;
 		color: var(--text-muted);
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 	}
 
 	.value {
-		font-size: 0.875rem;
+		font-size: 1rem;
 		font-weight: 800;
 		color: var(--on-surface);
 		white-space: nowrap;
@@ -209,13 +222,32 @@
 		text-overflow: ellipsis;
 	}
 
+	.bo-built {
+		font-size: 0.75rem;
+		font-weight: 700;
+		color: var(--success);
+		margin-top: 2px;
+	}
+
+	.qty-row {
+		display: flex;
+		align-items: baseline;
+		gap: 4px;
+	}
+
+	.qty-of {
+		font-size: 0.8125rem;
+		font-weight: 700;
+		color: var(--text-muted);
+	}
+
 	.qty-input {
 		background: transparent;
 		border: none;
 		color: var(--primary-fixed-dim);
-		font-size: 1rem;
+		font-size: 1.125rem;
 		font-weight: 900;
-		width: 40px;
+		width: 48px;
 		padding: 0;
 		outline: none;
 	}

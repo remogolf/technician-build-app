@@ -11,6 +11,10 @@ function createWorkbenchState() {
 	let wipLocationName = $state(browser ? localStorage.getItem('active_wip_name') : '');
 	const _savedQty = browser ? parseInt(localStorage.getItem('active_work_qty') ?? '', 10) : NaN;
 	let workQuantity = $state(Number.isNaN(_savedQty) || _savedQty < 1 ? 1 : _savedQty);
+	const _savedTarget = browser ? parseInt(localStorage.getItem('active_bo_target') ?? '', 10) : NaN;
+	let buildOrderTarget = $state(Number.isNaN(_savedTarget) ? 0 : _savedTarget);
+	const _savedBuilt = browser ? parseInt(localStorage.getItem('active_bo_built') ?? '', 10) : NaN;
+	let buildOrderBuilt = $state(Number.isNaN(_savedBuilt) ? 0 : _savedBuilt);
 
 	return {
 		get buildOrderId() {
@@ -27,6 +31,12 @@ function createWorkbenchState() {
 		},
 		get workQuantity() {
 			return workQuantity;
+		},
+		get buildOrderTarget() {
+			return buildOrderTarget;
+		},
+		get buildOrderBuilt() {
+			return buildOrderBuilt;
 		},
 
 		/**
@@ -67,9 +77,28 @@ function createWorkbenchState() {
 
 		/** @param {number} qty */
 		setWorkQuantity(qty) {
-			workQuantity = Math.max(1, qty);
+			const cap = buildOrderTarget > 0 ? buildOrderTarget : Infinity;
+			workQuantity = Math.max(1, Math.min(qty, cap));
 			if (browser) {
 				localStorage.setItem('active_work_qty', String(workQuantity));
+			}
+		},
+
+		/**
+		 * @param {number} target
+		 * @param {number} built
+		 */
+		setOrderDetails(target, built) {
+			buildOrderTarget = target;
+			buildOrderBuilt = built;
+			if (browser) {
+				localStorage.setItem('active_bo_target', String(target));
+				localStorage.setItem('active_bo_built', String(built));
+			}
+			// Clamp work quantity to new target
+			if (target > 0 && workQuantity > target) {
+				workQuantity = target;
+				if (browser) localStorage.setItem('active_work_qty', String(target));
 			}
 		},
 
@@ -77,6 +106,12 @@ function createWorkbenchState() {
 			this.selectOrder(null);
 			this.setWipLocation(null);
 			this.setWorkQuantity(1);
+			buildOrderTarget = 0;
+			buildOrderBuilt = 0;
+			if (browser) {
+				localStorage.removeItem('active_bo_target');
+				localStorage.removeItem('active_bo_built');
+			}
 		}
 	};
 }

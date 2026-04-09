@@ -416,26 +416,26 @@
 	.part-name {
 		font-weight: 800;
 		color: var(--on-surface);
-		font-size: 0.9375rem;
-		line-height: 1.2;
+		font-size: 1rem;
+		line-height: 1.3;
 	}
 
 	.sku {
-		font-size: 0.625rem;
+		font-size: 0.75rem;
 		font-weight: 900;
 		text-transform: uppercase;
 		letter-spacing: 0.08em;
 		color: var(--text-muted);
-		margin-top: 2px;
+		margin-top: 4px;
 	}
 
 	.serial-pill {
 		font-family: var(--font-mono);
-		font-size: 0.75rem;
+		font-size: 0.8125rem;
 		font-weight: 700;
 		background: var(--surface-container-low);
-		color: var(--primary);
-		padding: 2px var(--space-sm);
+		color: var(--primary-fixed-dim);
+		padding: 4px var(--space-md);
 		border-radius: var(--radius-sm);
 		display: inline-block;
 		margin-top: var(--space-sm);
@@ -444,13 +444,13 @@
 	.status-badge {
 		display: inline-block;
 		margin-top: var(--space-sm);
-		background: color-mix(in srgb, var(--tertiary) 15%, transparent);
+		background: color-mix(in srgb, var(--tertiary) 12%, transparent);
 		color: var(--tertiary);
-		border: 1px solid color-mix(in srgb, var(--tertiary) 40%, transparent);
-		padding: 2px var(--space-sm);
+		border: 1.5px solid color-mix(in srgb, var(--tertiary) 30%, transparent);
+		padding: 4px var(--space-md);
 		border-radius: var(--radius-sm);
-		font-size: 0.625rem;
-		font-weight: 900;
+		font-size: 0.75rem;
+		font-weight: 800;
 		text-transform: uppercase;
 		letter-spacing: 0.06em;
 	}
@@ -460,25 +460,25 @@
 		display: flex;
 		flex-direction: column;
 		align-items: flex-end;
-		gap: var(--space-sm);
+		gap: var(--space-md);
 		flex-shrink: 0;
 	}
 
 	.qty-block {
 		text-align: right;
-		line-height: 1;
+		line-height: 1.1;
 	}
 
 	.qty-value {
-		font-size: 1.25rem;
+		font-size: 1.5rem;
 		font-weight: 900;
 		color: var(--on-surface);
 	}
 
 	.qty-unit {
 		display: block;
-		font-size: 0.625rem;
-		font-weight: 700;
+		font-size: 0.75rem;
+		font-weight: 800;
 		color: var(--text-muted);
 		text-transform: uppercase;
 	}
@@ -487,11 +487,11 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		width: 28px;
-		height: 28px;
+		width: 36px;
+		height: 36px;
 		background: var(--surface-container-highest);
 		border: 1px solid var(--outline-variant);
-		border-radius: var(--radius-sm);
+		border-radius: var(--radius-md);
 		color: var(--text-muted);
 		transition: background 0.1s;
 	}
