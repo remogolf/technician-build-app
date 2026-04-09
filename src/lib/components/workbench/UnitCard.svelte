@@ -425,21 +425,21 @@
 	}
 
 	.unit-label {
-		font-size: 0.75rem;
-		font-weight: 800;
+		font-size: 0.625rem;
+		font-weight: 900;
 		text-transform: uppercase;
-		letter-spacing: 0.08em;
+		letter-spacing: 0.1em;
 		color: var(--text-muted);
 		margin-bottom: var(--space-xs);
 	}
 
 	.serial-tag {
 		font-family: var(--font-mono);
-		font-size: 0.875rem;
+		font-size: 0.8125rem;
 		font-weight: 700;
 		background: var(--surface-container-highest);
 		color: var(--on-surface);
-		padding: 4px var(--space-md);
+		padding: 2px var(--space-sm);
 		border-radius: var(--radius-sm);
 		border: 1px solid var(--outline-variant);
 	}
@@ -447,41 +447,41 @@
 	.serial-empty {
 		color: var(--text-muted);
 		font-style: italic;
-		font-weight: 600;
-		font-size: 0.875rem;
+		font-weight: 500;
+		font-size: 0.8125rem;
 	}
 
 	.card-right {
 		display: flex;
 		align-items: center;
-		gap: var(--space-md);
+		gap: var(--space-sm);
 		flex-shrink: 0;
 	}
 
 	.status-badge {
-		font-size: 0.75rem;
+		font-size: 0.625rem;
 		font-weight: 800;
-		padding: 4px 10px;
+		padding: 3px 8px;
 		border-radius: var(--radius-sm);
 		background: var(--primary-fixed-dim);
 		color: var(--surface);
-		letter-spacing: 0.06em;
+		letter-spacing: 0.08em;
 		text-transform: uppercase;
 	}
 
 	.status-badge.complete {
 		background: transparent;
 		color: var(--success);
-		border: 1.5px solid var(--success);
+		border: 1px solid var(--success);
 	}
 
 	.more-btn {
-		width: 36px;
-		height: 36px;
+		width: 28px;
+		height: 28px;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		border-radius: var(--radius-md);
+		border-radius: var(--radius-sm);
 		background: var(--surface-container-highest);
 		color: var(--text-muted);
 		border: 1px solid var(--outline-variant);
@@ -496,7 +496,7 @@
 	}
 
 	.action-label {
-		font-size: 0.875rem;
+		font-size: 0.75rem;
 		font-weight: 700;
 		color: var(--text-muted);
 	}
@@ -506,8 +506,8 @@
 	}
 
 	.pulse-dot {
-		width: 10px;
-		height: 10px;
+		width: 8px;
+		height: 8px;
 		background: var(--primary);
 		border-radius: 50%;
 		animation: pulse 2s infinite;
